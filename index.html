@@ -127,12 +127,23 @@
             position: absolute;
             top: 1rem;
             right: 1rem;
-            color: white;
-            font-size: 2rem;
-            cursor: pointer;
-            background: none;
+            width: 40px;
+            height: 40px;
             border: none;
-            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1002;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .lightbox-close:hover {
+            background: rgba(0, 0, 0, 0.8);
         }
 
         .lightbox-metadata {
@@ -255,7 +266,11 @@
     </div>
     <div class="gallery" id="gallery"></div>
     <div class="lightbox" id="lightbox">
-        <button class="lightbox-close">&times;</button>
+        <button class="lightbox-close">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+                <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </button>
         <div class="lightbox-nav">
             <button id="prevButton">
                 <svg viewBox="0 0 24 24">
