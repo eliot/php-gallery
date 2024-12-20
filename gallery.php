@@ -43,11 +43,11 @@ function createThumbnail($sourcePath, $albumPath) {
     // Base size around 800px to show more detail
     $baseSize = 800;
     if ($aspectRatio > 1.5) { // Wide image
-        $thumbWidth = $baseSize * 1.5; // Can span up to 1.5 columns
-        $thumbHeight = $thumbWidth / $aspectRatio;
+        $thumbWidth = $baseSize;
+        $thumbHeight = $baseSize / $aspectRatio;
     } elseif ($aspectRatio < 0.7) { // Tall image
-        $thumbHeight = $baseSize * 1.4; // 40% taller than base
-        $thumbWidth = $thumbHeight * $aspectRatio;
+        $thumbWidth = $baseSize * 0.7; // Limit height by making width smaller
+        $thumbHeight = $thumbWidth / $aspectRatio;
     } else { // Standard image
         $thumbWidth = $baseSize;
         $thumbHeight = $baseSize / $aspectRatio;
