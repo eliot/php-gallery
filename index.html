@@ -410,7 +410,18 @@
                 const caption = metadata.querySelector('.lightbox-caption');
                 const date = metadata.querySelector('.lightbox-date');
                 
-                title.textContent = imageData.title || '';
+                // Get filename without extension to compare with title
+                const filename = imageData.url.split('/').pop().split('.')[0];
+                
+                // Only show title if it's different from the filename
+                // (meaning it was set in metadata.ini)
+                if (imageData.title && imageData.title !== filename) {
+                    title.textContent = imageData.title;
+                    title.style.display = 'block';
+                } else {
+                    title.style.display = 'none';
+                }
+                
                 caption.textContent = imageData.caption || '';
                 
                 if (imageData.date) {
