@@ -8,7 +8,7 @@ function createThumbnail($imagePath) {
         mkdir($thumbDir, 0777, true);
     }
     
-    $thumbPath = $thumbDir . '/' . $pathInfo['filename'] . '_thumb.' . $pathInfo['extension'];
+    $thumbPath = $thumbDir . '/' . $pathInfo['filename'] . '.' . $pathInfo['extension'];
     
     // Load the image based on its type
     $extension = strtolower($pathInfo['extension']);
@@ -92,7 +92,8 @@ function checkThumbnailExists($imagePath) {
 function getThumbPath($imagePath) {
     $pathInfo = pathinfo($imagePath);
     $thumbDir = $pathInfo['dirname'] . '/thumbnails';
-    return $thumbDir . '/' . $pathInfo['filename'] . '_thumb.' . $pathInfo['extension'];
+    // Match gallery.php behavior - use same filename
+    return $thumbDir . '/' . $pathInfo['basename'];
 }
 
 function getAllImages() {
