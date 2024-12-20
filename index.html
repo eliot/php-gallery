@@ -54,6 +54,13 @@
             .gallery {
                 grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             }
+            .lightbox-nav {
+                display: none;
+            }
+
+            .gallery-item {
+                width: calc(50% - 10px);
+            }
         }
 
         @media (max-width: 480px) {
@@ -189,6 +196,54 @@
             height: 24px;
             fill: white;
         }
+
+        @media (max-width: 768px) {
+            .lightbox {
+                padding: 0;
+            }
+
+            .lightbox-nav {
+                display: none;
+            }
+
+            .lightbox img {
+                max-width: 100%;
+                max-height: 100vh;
+                margin: 0;
+                width: 100%;
+                object-fit: contain;
+            }
+
+            .lightbox-metadata {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: rgba(0, 0, 0, 0.7);
+                margin: 0;
+                padding: 1rem;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            .lightbox-close {
+                z-index: 1002;
+                top: 0.5rem;
+                right: 0.5rem;
+            }
+
+            .gallery-item {
+                width: calc(50% - 10px);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .gallery-item {
+                width: 100%;
+                margin: 5px 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -236,6 +291,8 @@
                 this.albums = [];
                 this.images = [];
                 this.currentImageIndex = -1;
+                this.touchStartX = 0;
+                this.touchEndX = 0;
                 
                 this.setupEventListeners();
                 this.initialize();
@@ -314,6 +371,32 @@
                                 }
                                 break;
                         }
+                    }
+                });
+
+                // Add touch events for mobile
+                this.lightbox.addEventListener('touchstart', (e) => {
+                    this.touchStartX = e.touches[0].clientX;
+                });
+
+                this.lightbox.addEventListener('touchmove', (e) => {
+                    // Prevent default to stop page scrolling while swiping
+                    e.preventDefault();
+                });
+
+                this.lightbox.addEventListener('touchend', (e) => {
+                    this.touchEndX = e.changedTouches[0].clientX;
+                    const swipeDistance = this.touchEndX - this.touchStartX;
+                    
+                    // Require a minimum swipe distance of 50px
+                    if (Math.abs(swipeDistance) < 50) return;
+                    
+                    if (swipeDistance > 0 && this.currentImageIndex > 0) {
+                        // Swipe right - go to previous
+                        this.showLightbox(this.images[this.currentImageIndex - 1], this.currentImageIndex - 1);
+                    } else if (swipeDistance < 0 && this.currentImageIndex < this.images.length - 1) {
+                        // Swipe left - go to next
+                        this.showLightbox(this.images[this.currentImageIndex + 1], this.currentImageIndex + 1);
                     }
                 });
             }
