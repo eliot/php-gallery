@@ -29,14 +29,42 @@ function createThumbnail($sourcePath, $albumPath) {
     $filename = basename($sourcePath);
     $thumbnailPath = $thumbDir . '/' . $filename;
     
-    // If thumbnail already exists and is newer than source, return it
+    // Get original image dimensions
+    $imageInfo = getimagesize($sourcePath);
+    if (!$imageInfo) {
+        return false;
+    }
+    
+    $originalWidth = $imageInfo[0];
+    $originalHeight = $imageInfo[1];
+    $aspectRatio = $originalWidth / $originalHeight;
+    
+    // Calculate thumbnail dimensions maintaining aspect ratio
+    // Base size around 800px to show more detail
+    $baseSize = 800;
+    if ($aspectRatio > 1.5) { // Wide image
+        $thumbWidth = $baseSize * 1.5; // Can span up to 1.5 columns
+        $thumbHeight = $thumbWidth / $aspectRatio;
+    } elseif ($aspectRatio < 0.7) { // Tall image
+        $thumbHeight = $baseSize * 1.4; // 40% taller than base
+        $thumbWidth = $thumbHeight * $aspectRatio;
+    } else { // Standard image
+        $thumbWidth = $baseSize;
+        $thumbHeight = $baseSize / $aspectRatio;
+    }
+    
+    // If thumbnail exists and is newer than source, return dimensions
     if (file_exists($thumbnailPath) && 
         filemtime($thumbnailPath) >= filemtime($sourcePath)) {
-        return str_replace(__DIR__, '', $thumbnailPath);
+        return [
+            'url' => str_replace(__DIR__, '', $thumbnailPath),
+            'width' => round($thumbWidth),
+            'height' => round($thumbHeight),
+            'aspect_ratio' => $aspectRatio
+        ];
     }
     
     // Load the image based on its type
-    $imageInfo = getimagesize($sourcePath);
     switch ($imageInfo[2]) {
         case IMAGETYPE_JPEG:
             $source = imagecreatefromjpeg($sourcePath);
@@ -51,38 +79,41 @@ function createThumbnail($sourcePath, $albumPath) {
             return false;
     }
     
-    // Calculate new dimensions maintaining aspect ratio
-    $width = $imageInfo[0];
-    $height = $imageInfo[1];
-    
-    $ratio = min(THUMBNAIL_WIDTH / $width, THUMBNAIL_HEIGHT / $height);
-    $new_width = round($width * $ratio);
-    $new_height = round($height * $ratio);
-    
     // Create and save thumbnail
-    $thumbnail = imagecreatetruecolor($new_width, $new_height);
+    $thumbnail = imagecreatetruecolor(round($thumbWidth), round($thumbHeight));
     
-    // Preserve transparency for PNG images
+    // Enable alpha channel for PNG images
     if ($imageInfo[2] === IMAGETYPE_PNG) {
         imagealphablending($thumbnail, false);
         imagesavealpha($thumbnail, true);
         $transparent = imagecolorallocatealpha($thumbnail, 255, 255, 255, 127);
-        imagefilledrectangle($thumbnail, 0, 0, $new_width, $new_height, $transparent);
+        imagefilledrectangle($thumbnail, 0, 0, round($thumbWidth), round($thumbHeight), $transparent);
     }
     
+    // Use better quality resampling
     imagecopyresampled(
         $thumbnail, $source,
         0, 0, 0, 0,
-        $new_width, $new_height,
-        $width, $height
+        round($thumbWidth), round($thumbHeight),
+        $originalWidth, $originalHeight
     );
+
+    // Apply sharpening
+    $sharpen = array(
+        array(-1, -1, -1),
+        array(-1, 16, -1),
+        array(-1, -1, -1)
+    );
+    $divisor = array_sum(array_map('array_sum', $sharpen));
+    imageconvolution($thumbnail, $sharpen, $divisor, 0);
     
+    // Save with high quality settings
     switch ($imageInfo[2]) {
         case IMAGETYPE_JPEG:
-            imagejpeg($thumbnail, $thumbnailPath, 85);
+            imagejpeg($thumbnail, $thumbnailPath, 95); // Increased quality from 85 to 95
             break;
         case IMAGETYPE_PNG:
-            imagepng($thumbnail, $thumbnailPath, 8);
+            imagepng($thumbnail, $thumbnailPath, 2); // Reduced compression (0-9, lower = better quality)
             break;
         case IMAGETYPE_GIF:
             imagegif($thumbnail, $thumbnailPath);
@@ -92,7 +123,12 @@ function createThumbnail($sourcePath, $albumPath) {
     imagedestroy($thumbnail);
     imagedestroy($source);
     
-    return str_replace(__DIR__, '', $thumbnailPath);
+    return [
+        'url' => str_replace(__DIR__, '', $thumbnailPath),
+        'width' => round($thumbWidth),
+        'height' => round($thumbHeight),
+        'aspect_ratio' => $aspectRatio
+    ];
 }
 
 function getAlbums() {
@@ -132,29 +168,31 @@ function getImages($page = 1, $album = '') {
     $files = array_filter($files, function($file) {
         return !strstr($file, '/thumbnails/');
     });
-    $files = array_values($files); // Reset array keys after filtering
+    $files = array_values($files);
     $files = array_slice($files, $start, IMAGES_PER_PAGE);
     
     foreach ($files as $file) {
         $dir = dirname($file);
         $filename = basename($file);
-        $thumbnailUrl = createThumbnail($file, $dir);
+        $thumbnailData = createThumbnail($file, $dir);
         
-        $imageData = [
-            'url' => str_replace(__DIR__, '', $file),
-            'thumbnail_url' => $thumbnailUrl,
-            'title' => pathinfo($filename, PATHINFO_FILENAME)
-        ];
-        
-        $metadataFile = $dir . '/metadata.ini';
-        if (file_exists($metadataFile)) {
-            $metadata = parse_ini_file($metadataFile, true);
-            if ($metadata && isset($metadata[$filename])) {
-                $imageData = array_merge($imageData, $metadata[$filename]);
+        if ($thumbnailData) {
+            $imageData = [
+                'url' => str_replace(__DIR__, '', $file),
+                'thumbnail' => $thumbnailData,
+                'title' => pathinfo($filename, PATHINFO_FILENAME)
+            ];
+            
+            $metadataFile = $dir . '/metadata.ini';
+            if (file_exists($metadataFile)) {
+                $metadata = parse_ini_file($metadataFile, true);
+                if ($metadata && isset($metadata[$filename])) {
+                    $imageData = array_merge($imageData, $metadata[$filename]);
+                }
             }
+            
+            $images[] = $imageData;
         }
-        
-        $images[] = $imageData;
     }
     
     return $images;
