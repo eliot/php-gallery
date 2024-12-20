@@ -124,11 +124,12 @@
 
         .lightbox.active {
             display: flex;
+            flex-direction: column;
         }
 
         .lightbox img {
             max-width: 90%;
-            max-height: 90vh;
+            max-height: 80vh;
             object-fit: contain;
         }
 
@@ -143,6 +144,29 @@
             border: none;
             padding: 0.5rem;
         }
+
+        .lightbox-metadata {
+            color: white;
+            text-align: center;
+            margin-top: 1rem;
+            max-width: 800px;
+        }
+
+        .lightbox-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .lightbox-caption {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .lightbox-date {
+            font-size: 0.9rem;
+            color: #ccc;
+        }
     </style>
 </head>
 <body>
@@ -156,6 +180,11 @@
     <div class="lightbox" id="lightbox">
         <button class="lightbox-close">&times;</button>
         <img src="" alt="">
+        <div class="lightbox-metadata">
+            <div class="lightbox-title"></div>
+            <div class="lightbox-caption"></div>
+            <div class="lightbox-date"></div>
+        </div>
     </div>
 
     <script>
@@ -225,8 +254,29 @@
                 });
             }
 
-            showLightbox(imageUrl) {
-                this.lightboxImg.src = imageUrl;
+            showLightbox(imageData) {
+                this.lightboxImg.src = imageData.url;
+                
+                const metadata = this.lightbox.querySelector('.lightbox-metadata');
+                const title = metadata.querySelector('.lightbox-title');
+                const caption = metadata.querySelector('.lightbox-caption');
+                const date = metadata.querySelector('.lightbox-date');
+                
+                title.textContent = imageData.title || '';
+                caption.textContent = imageData.caption || '';
+                
+                if (imageData.date) {
+                    const dateObj = new Date(imageData.date);
+                    const formattedDate = dateObj.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                    date.textContent = formattedDate;
+                } else {
+                    date.textContent = '';
+                }
+                
                 this.lightbox.classList.add('active');
             }
 
@@ -264,7 +314,7 @@
                                  height="${image.thumbnail.height}">
                             ${image.caption ? `<div class="caption">${image.caption}</div>` : ''}
                         `;
-                        item.addEventListener('click', () => this.showLightbox(image.url));
+                        item.addEventListener('click', () => this.showLightbox(image));
                         this.gallery.appendChild(item);
                     });
 
