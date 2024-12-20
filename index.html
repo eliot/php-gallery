@@ -152,6 +152,43 @@
             font-size: 0.9rem;
             color: #ccc;
         }
+
+        .lightbox-nav {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 100%;
+            left: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 2rem;
+            pointer-events: none;
+            z-index: 1001;
+        }
+
+        .lightbox-nav button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            cursor: pointer;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .lightbox-nav button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .lightbox-nav svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
     </style>
 </head>
 <body>
@@ -164,6 +201,18 @@
     <div class="gallery" id="gallery"></div>
     <div class="lightbox" id="lightbox">
         <button class="lightbox-close">&times;</button>
+        <div class="lightbox-nav">
+            <button id="prevButton">
+                <svg viewBox="0 0 24 24">
+                    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                </svg>
+            </button>
+            <button id="nextButton">
+                <svg viewBox="0 0 24 24">
+                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                </svg>
+            </button>
+        </div>
         <img src="" alt="">
         <div class="lightbox-metadata">
             <div class="lightbox-title"></div>
@@ -185,6 +234,8 @@
                 this.lightboxImg = this.lightbox.querySelector('img');
                 this.config = null;
                 this.albums = [];
+                this.images = [];
+                this.currentImageIndex = -1;
                 
                 this.setupEventListeners();
                 this.initialize();
@@ -232,14 +283,43 @@
                     this.lightbox.classList.remove('active');
                 });
 
+                this.lightbox.querySelector('#prevButton').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (this.currentImageIndex > 0) {
+                        this.showLightbox(this.images[this.currentImageIndex - 1], this.currentImageIndex - 1);
+                    }
+                });
+
+                this.lightbox.querySelector('#nextButton').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (this.currentImageIndex < this.images.length - 1) {
+                        this.showLightbox(this.images[this.currentImageIndex + 1], this.currentImageIndex + 1);
+                    }
+                });
+
                 document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') {
-                        this.lightbox.classList.remove('active');
+                    if (this.lightbox.classList.contains('active')) {
+                        switch(e.key) {
+                            case 'Escape':
+                                this.lightbox.classList.remove('active');
+                                break;
+                            case 'ArrowLeft':
+                                if (this.currentImageIndex > 0) {
+                                    this.showLightbox(this.images[this.currentImageIndex - 1], this.currentImageIndex - 1);
+                                }
+                                break;
+                            case 'ArrowRight':
+                                if (this.currentImageIndex < this.images.length - 1) {
+                                    this.showLightbox(this.images[this.currentImageIndex + 1], this.currentImageIndex + 1);
+                                }
+                                break;
+                        }
                     }
                 });
             }
 
-            showLightbox(imageData) {
+            showLightbox(imageData, index = -1) {
+                this.currentImageIndex = index !== -1 ? index : this.images.indexOf(imageData);
                 this.lightboxImg.src = imageData.url;
                 
                 const metadata = this.lightbox.querySelector('.lightbox-metadata');
@@ -261,6 +341,12 @@
                 } else {
                     date.textContent = '';
                 }
+                
+                // Update button visibility
+                const prevButton = this.lightbox.querySelector('#prevButton');
+                const nextButton = this.lightbox.querySelector('#nextButton');
+                prevButton.style.visibility = this.currentImageIndex > 0 ? 'visible' : 'hidden';
+                nextButton.style.visibility = this.currentImageIndex < this.images.length - 1 ? 'visible' : 'hidden';
                 
                 this.lightbox.classList.add('active');
             }
@@ -287,10 +373,17 @@
                     const response = await fetch(`gallery.php?action=images&page=${this.page}&album=${this.currentAlbum}`);
                     const images = await response.json();
                     
-                    images.forEach(image => {
+                    // Store images for navigation
+                    if (this.page === 1) {
+                        this.images = images;
+                    } else {
+                        this.images = this.images.concat(images);
+                    }
+
+                    images.forEach((image, index) => {
+                        const globalIndex = (this.page - 1) * 20 + index;
                         const item = document.createElement('div');
                         item.className = 'gallery-item';
-                        
                         item.innerHTML = `
                             <img src="${image.thumbnail.url}" 
                                  alt="${image.title || ''}" 
@@ -298,7 +391,7 @@
                                  width="${image.thumbnail.width}"
                                  height="${image.thumbnail.height}">
                         `;
-                        item.addEventListener('click', () => this.showLightbox(image));
+                        item.addEventListener('click', () => this.showLightbox(image, globalIndex));
                         this.gallery.appendChild(item);
                     });
 
