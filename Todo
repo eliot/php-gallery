@@ -1,0 +1,5 @@
+- Add password protection for albums
+- Add pagination
+- Add OpenGraph metadata
+- Add history API URLs for permalinking to albums and images
+- Add customizable copyright notice
