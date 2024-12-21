@@ -521,7 +521,7 @@
             showLightbox(imageData, index = -1) {
                 console.log('Showing lightbox for:', imageData);
                 this.currentImageIndex = index !== -1 ? index : this.images.indexOf(imageData);
-                this.lightboxImg.src = imageData.url;
+                this.lightboxImg.src = this.baseUrl + imageData.url.replace(/^\//, '');
                 
                 const metadata = this.lightbox.querySelector('.lightbox-metadata');
                 const title = metadata.querySelector('.lightbox-title');
@@ -560,9 +560,13 @@
                 prevButton.style.visibility = this.currentImageIndex > 0 ? 'visible' : 'hidden';
                 nextButton.style.visibility = this.currentImageIndex < this.images.length - 1 ? 'visible' : 'hidden';
                 
-                // Update URL with image path
-                const imagePath = imageData.url.split('/').pop();
-                const url = `/${this.currentAlbum}/${imagePath}`;
+                // Extract album and image name from the URL
+                const pathParts = imageData.url.split('/');
+                const imageName = pathParts.pop();
+                const album = pathParts[pathParts.length - 1];
+                
+                // Update URL with album and image path
+                const url = `/${album}/${imageName}`;
                 history.pushState({}, '', url);
                 
                 this.lightbox.classList.add('active');
