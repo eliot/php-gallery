@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loading...</title>
+    <base href="/">
     <style>
         * {
             margin: 0;
@@ -330,32 +331,94 @@
                 this.touchStartX = 0;
                 this.touchEndX = 0;
                 
+                // Get base URL for API calls
+                const baseEl = document.querySelector('base');
+                this.baseUrl = baseEl ? baseEl.href : window.location.origin + '/';
+                
+                this.handlePopState = this.handlePopState.bind(this);
+                window.addEventListener('popstate', this.handlePopState);
                 this.detectTouch();
                 this.setupEventListeners();
                 this.initialize();
             }
 
             async initialize() {
-                await this.loadConfig();
-                await this.loadAlbums();
-            }
-
-            async loadConfig() {
                 try {
-                    const response = await fetch('gallery.php?action=config');
-                    this.config = await response.json();
-                    document.title = this.config.gallery.title;
-                    this.updateTitle();
+                    await this.loadConfig();
+                    await this.loadAlbums();
+                    await this.handleInitialUrl();
                 } catch (error) {
-                    console.error('Error loading config:', error);
+                    console.error('Error during initialization:', error);
                 }
             }
 
-            updateTitle() {
-                const currentAlbumData = this.albums.find(album => album.path === this.currentAlbum);
-                this.titleElement.textContent = currentAlbumData 
-                    ? currentAlbumData.title 
-                    : this.config.gallery.title;
+            async handleInitialUrl() {
+                const path = window.location.pathname.substring(1);
+                const parts = path.split('/').filter(p => p);
+                console.log('URL parts:', parts);
+
+                if (parts.length === 0) {
+                    await this.loadImages();
+                    return;
+                }
+
+                if (parts.length >= 1) {
+                    this.currentAlbum = parts[0];
+                    this.albumSelect.value = this.currentAlbum;
+                    this.updateTitle();
+                    await this.loadImages();
+
+                    if (parts.length === 2) {
+                        const targetImage = parts[1];
+                        console.log('Looking for image:', targetImage);
+                        console.log('Available images:', this.images.map(img => img.url));
+                        
+                        // Try both exact match and endsWith
+                        const image = this.images.find(img => {
+                            const filename = img.url.split('/').pop();
+                            console.log('Comparing:', filename, 'with:', targetImage);
+                            return filename === targetImage || img.url.endsWith(targetImage);
+                        });
+                        
+                        if (image) {
+                            console.log('Found image:', image);
+                            this.showLightbox(image);
+                        } else {
+                            console.log('Image not found');
+                        }
+                    }
+                }
+            }
+
+            handlePopState(event) {
+                const path = window.location.pathname.substring(1);
+                const parts = path.split('/').filter(p => p);
+
+                if (parts.length === 0) {
+                    this.currentAlbum = '';
+                    this.albumSelect.value = '';
+                    this.gallery.innerHTML = '';
+                    this.page = 1;
+                    this.updateTitle();
+                    this.loadImages();
+                    return;
+                }
+
+                if (parts.length >= 1) {
+                    this.currentAlbum = parts[0];
+                    this.albumSelect.value = this.currentAlbum;
+                    this.gallery.innerHTML = '';
+                    this.page = 1;
+                    this.updateTitle();
+                    this.loadImages().then(() => {
+                        if (parts.length === 2) {
+                            const image = this.images.find(img => img.url.endsWith(parts[1]));
+                            if (image) {
+                                this.showLightbox(image);
+                            }
+                        }
+                    });
+                }
             }
 
             setupEventListeners() {
@@ -370,11 +433,17 @@
                     this.gallery.innerHTML = '';
                     this.page = 1;
                     this.updateTitle();
+                    
+                    const url = this.currentAlbum ? `/${this.currentAlbum}` : '/';
+                    history.pushState({}, '', url);
+                    
                     this.loadImages();
                 });
 
                 this.lightbox.querySelector('.lightbox-close').addEventListener('click', () => {
                     this.lightbox.classList.remove('active');
+                    const url = this.currentAlbum ? `/${this.currentAlbum}` : '/';
+                    history.pushState({}, '', url);
                 });
 
                 this.lightbox.querySelector('#prevButton').addEventListener('click', (e) => {
@@ -450,6 +519,7 @@
             }
 
             showLightbox(imageData, index = -1) {
+                console.log('Showing lightbox for:', imageData);
                 this.currentImageIndex = index !== -1 ? index : this.images.indexOf(imageData);
                 this.lightboxImg.src = imageData.url;
                 
@@ -490,20 +560,47 @@
                 prevButton.style.visibility = this.currentImageIndex > 0 ? 'visible' : 'hidden';
                 nextButton.style.visibility = this.currentImageIndex < this.images.length - 1 ? 'visible' : 'hidden';
                 
+                // Update URL with image path
+                const imagePath = imageData.url.split('/').pop();
+                const url = `/${this.currentAlbum}/${imagePath}`;
+                history.pushState({}, '', url);
+                
                 this.lightbox.classList.add('active');
+            }
+
+            async loadConfig() {
+                try {
+                    const response = await fetch(this.baseUrl + 'gallery.php?action=config');
+                    const text = await response.text();
+                    console.log('Config response:', text);
+                    this.config = JSON.parse(text);
+                    document.title = this.config.gallery.title;
+                    this.updateTitle();
+                } catch (error) {
+                    console.error('Error loading config:', error);
+                    console.error('Response text:', error.responseText);
+                }
+            }
+
+            updateTitle() {
+                const currentAlbumData = this.albums.find(album => album.path === this.currentAlbum);
+                this.titleElement.textContent = currentAlbumData 
+                    ? currentAlbumData.title 
+                    : this.config.gallery.title;
             }
 
             async loadAlbums() {
                 try {
-                    const response = await fetch('gallery.php?action=albums');
-                    this.albums = await response.json();
+                    const response = await fetch(this.baseUrl + 'gallery.php?action=albums');
+                    const text = await response.text();
+                    console.log('Albums response:', text);
+                    this.albums = JSON.parse(text);
                     
                     this.albumSelect.innerHTML = '<option value="">All Images</option>' +
                         this.albums.map(album => `<option value="${album.path}">${album.title || album.path}</option>`).join('');
-                    
-                    this.loadImages();
                 } catch (error) {
                     console.error('Error loading albums:', error);
+                    console.error('Response text:', error.responseText);
                 }
             }
 
@@ -512,10 +609,13 @@
                 this.loading = true;
 
                 try {
-                    const response = await fetch(`gallery.php?action=images&page=${this.page}&album=${this.currentAlbum}`);
-                    const images = await response.json();
+                    const url = this.baseUrl + `gallery.php?action=images&page=${this.page}&album=${this.currentAlbum}`;
+                    console.log('Loading images from:', url);
+                    const response = await fetch(url);
+                    const text = await response.text();
+                    console.log('Images response:', text);
+                    const images = JSON.parse(text);
                     
-                    // Store images for navigation
                     if (this.page === 1) {
                         this.images = images;
                     } else {
@@ -527,7 +627,7 @@
                         const item = document.createElement('div');
                         item.className = 'gallery-item';
                         item.innerHTML = `
-                            <img src="${image.thumbnail.url}" 
+                            <img src="${this.baseUrl}${image.thumbnail.url.replace(/^\//, '')}" 
                                  alt="${image.title || ''}" 
                                  loading="lazy"
                                  width="${image.thumbnail.width}"
@@ -537,8 +637,10 @@
                         this.gallery.appendChild(item);
                     });
 
+                    this.page++;
                 } catch (error) {
                     console.error('Error loading images:', error);
+                    console.error('Response text:', error.responseText);
                 } finally {
                     this.loading = false;
                 }
@@ -549,6 +651,23 @@
                     this.page++;
                     this.loadImages();
                 }
+            }
+
+            displayImages(images) {
+                images.forEach((image, index) => {
+                    const globalIndex = (this.page - 1) * 20 + index;
+                    const item = document.createElement('div');
+                    item.className = 'gallery-item';
+                    item.innerHTML = `
+                        <img src="${this.baseUrl}${image.thumbnail.url.replace(/^\//, '')}" 
+                             alt="${image.title || ''}" 
+                             loading="lazy"
+                             width="${image.thumbnail.width}"
+                             height="${image.thumbnail.height}">
+                    `;
+                    item.addEventListener('click', () => this.showLightbox(image, globalIndex));
+                    this.gallery.appendChild(item);
+                });
             }
         }
 

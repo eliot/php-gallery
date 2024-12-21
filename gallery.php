@@ -1,4 +1,39 @@
 <?php
+// Start output buffering to catch any unwanted output
+ob_start();
+
+// Disable error display and capture errors
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+
+// Function to handle errors
+function handleError($errno, $errstr, $errfile, $errline) {
+    ob_clean();
+    http_response_code(500);
+    echo json_encode([
+        'error' => $errstr,
+        'file' => basename($errfile),
+        'line' => $errline
+    ]);
+    exit;
+}
+
+// Set error handler
+set_error_handler('handleError');
+
+// Set exception handler
+set_exception_handler(function($e) {
+    ob_clean();
+    http_response_code(500);
+    echo json_encode([
+        'error' => $e->getMessage(),
+        'file' => basename($e->getFile()),
+        'line' => $e->getLine()
+    ]);
+    exit;
+});
+
+// Set JSON content type
 header('Content-Type: application/json');
 
 // Configuration
@@ -199,27 +234,46 @@ function getImages($page = 1, $album = '') {
 }
 
 // Main logic
-$action = $_GET['action'] ?? '';
-$response = [];
+try {
+    // Clean any output that might have happened before
+    ob_clean();
+    
+    $action = $_GET['action'] ?? '';
+    $response = [];
 
-switch ($action) {
-    case 'albums':
-        $response = getAlbums();
-        break;
-        
-    case 'images':
-        $page = (int)($_GET['page'] ?? 1);
-        $album = $_GET['album'] ?? '';
-        $response = getImages($page, $album);
-        break;
-        
-    case 'config':
-        $response = getConfig();
-        break;
-        
-    default:
-        http_response_code(400);
-        $response = ['error' => 'Invalid action'];
+    switch ($action) {
+        case 'albums':
+            $response = getAlbums();
+            break;
+            
+        case 'images':
+            $page = (int)($_GET['page'] ?? 1);
+            $album = $_GET['album'] ?? '';
+            $response = getImages($page, $album);
+            break;
+            
+        case 'config':
+            $response = getConfig();
+            break;
+            
+        default:
+            http_response_code(400);
+            $response = ['error' => 'Invalid action'];
+    }
+
+    // Clean any unwanted output before sending JSON
+    ob_clean();
+    echo json_encode($response);
+} catch (Throwable $e) {
+    ob_clean();
+    http_response_code(500);
+    echo json_encode([
+        'error' => $e->getMessage(),
+        'file' => basename($e->getFile()),
+        'line' => $e->getLine(),
+        'trace' => $e->getTraceAsString()
+    ]);
 }
 
-echo json_encode($response);
+// End output buffering
+ob_end_flush();
