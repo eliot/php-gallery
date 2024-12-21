@@ -331,9 +331,10 @@
                 this.touchStartX = 0;
                 this.touchEndX = 0;
                 
-                // Get base URL for API calls
-                const baseEl = document.querySelector('base');
-                this.baseUrl = baseEl ? baseEl.href : window.location.origin + '/';
+                // Get initial base URL from current path
+                const pathParts = window.location.pathname.split('/').filter(p => p);
+                this.baseUrl = pathParts.length > 0 ? `/${pathParts[0]}/` : '/';
+                console.log('Initial base URL:', this.baseUrl);
                 
                 this.handlePopState = this.handlePopState.bind(this);
                 window.addEventListener('popstate', this.handlePopState);
@@ -353,8 +354,9 @@
             }
 
             async handleInitialUrl() {
-                const path = window.location.pathname.substring(1);
-                const parts = path.split('/').filter(p => p);
+                const path = window.location.pathname;
+                const relativePath = this.baseUrl ? path.replace(this.baseUrl, '') : path;
+                const parts = relativePath.split('/').filter(p => p);
                 console.log('URL parts:', parts);
 
                 if (parts.length === 0) {
@@ -370,29 +372,22 @@
 
                     if (parts.length === 2) {
                         const targetImage = parts[1];
-                        console.log('Looking for image:', targetImage);
-                        console.log('Available images:', this.images.map(img => img.url));
-                        
-                        // Try both exact match and endsWith
                         const image = this.images.find(img => {
                             const filename = img.url.split('/').pop();
-                            console.log('Comparing:', filename, 'with:', targetImage);
-                            return filename === targetImage || img.url.endsWith(targetImage);
+                            return filename === targetImage;
                         });
                         
                         if (image) {
-                            console.log('Found image:', image);
                             this.showLightbox(image);
-                        } else {
-                            console.log('Image not found');
                         }
                     }
                 }
             }
 
             handlePopState(event) {
-                const path = window.location.pathname.substring(1);
-                const parts = path.split('/').filter(p => p);
+                const path = window.location.pathname;
+                const relativePath = this.baseUrl ? path.replace(this.baseUrl, '') : path;
+                const parts = relativePath.split('/').filter(p => p);
 
                 if (parts.length === 0) {
                     this.currentAlbum = '';
@@ -434,7 +429,9 @@
                     this.page = 1;
                     this.updateTitle();
                     
-                    const url = this.currentAlbum ? `/${this.currentAlbum}` : '/';
+                    const url = this.currentAlbum 
+                        ? `${this.baseUrl}${this.currentAlbum}`
+                        : this.baseUrl || '/';
                     history.pushState({}, '', url);
                     
                     this.loadImages();
@@ -442,7 +439,9 @@
 
                 this.lightbox.querySelector('.lightbox-close').addEventListener('click', () => {
                     this.lightbox.classList.remove('active');
-                    const url = this.currentAlbum ? `/${this.currentAlbum}` : '/';
+                    const url = this.currentAlbum 
+                        ? `${this.baseUrl}${this.currentAlbum}`
+                        : this.baseUrl || '/';
                     history.pushState({}, '', url);
                 });
 
@@ -521,7 +520,7 @@
             showLightbox(imageData, index = -1) {
                 console.log('Showing lightbox for:', imageData);
                 this.currentImageIndex = index !== -1 ? index : this.images.indexOf(imageData);
-                this.lightboxImg.src = this.baseUrl + imageData.url.replace(/^\//, '');
+                this.lightboxImg.src = imageData.url;
                 
                 const metadata = this.lightbox.querySelector('.lightbox-metadata');
                 const title = metadata.querySelector('.lightbox-title');
@@ -531,8 +530,6 @@
                 // Get filename without extension to compare with title
                 const filename = imageData.url.split('/').pop().split('.')[0];
                 
-                // Only show title if it's different from the filename
-                // (meaning it was set in metadata.ini)
                 if (imageData.title && imageData.title !== filename) {
                     title.textContent = imageData.title;
                     title.style.display = 'block';
@@ -554,7 +551,6 @@
                     date.textContent = '';
                 }
                 
-                // Update button visibility
                 const prevButton = this.lightbox.querySelector('#prevButton');
                 const nextButton = this.lightbox.querySelector('#nextButton');
                 prevButton.style.visibility = this.currentImageIndex > 0 ? 'visible' : 'hidden';
@@ -566,19 +562,34 @@
                 const album = pathParts[pathParts.length - 1];
                 
                 // Update URL with album and image path
-                const url = `/${album}/${imageName}`;
+                const url = `${this.baseUrl}${album}/${imageName}`;
                 history.pushState({}, '', url);
                 
                 this.lightbox.classList.add('active');
             }
 
+            getApiUrl(action, params = {}) {
+                const queryParams = new URLSearchParams({ action, ...params });
+                return `${this.baseUrl}gallery.php?${queryParams}`;
+            }
+
             async loadConfig() {
                 try {
-                    const response = await fetch(this.baseUrl + 'gallery.php?action=config');
+                    const response = await fetch(this.getApiUrl('config'));
                     const text = await response.text();
                     console.log('Config response:', text);
                     this.config = JSON.parse(text);
                     document.title = this.config.gallery.title;
+                    
+                    // Update base URL from config if provided
+                    if (this.config.gallery.base_url) {
+                        this.baseUrl = this.config.gallery.base_url;
+                        if (!this.baseUrl.endsWith('/')) {
+                            this.baseUrl += '/';
+                        }
+                        console.log('Updated base URL from config:', this.baseUrl);
+                    }
+                    
                     this.updateTitle();
                 } catch (error) {
                     console.error('Error loading config:', error);
@@ -595,7 +606,7 @@
 
             async loadAlbums() {
                 try {
-                    const response = await fetch(this.baseUrl + 'gallery.php?action=albums');
+                    const response = await fetch(this.getApiUrl('albums'));
                     const text = await response.text();
                     console.log('Albums response:', text);
                     this.albums = JSON.parse(text);
@@ -613,7 +624,10 @@
                 this.loading = true;
 
                 try {
-                    const url = this.baseUrl + `gallery.php?action=images&page=${this.page}&album=${this.currentAlbum}`;
+                    const url = this.getApiUrl('images', {
+                        page: this.page,
+                        album: this.currentAlbum
+                    });
                     console.log('Loading images from:', url);
                     const response = await fetch(url);
                     const text = await response.text();
