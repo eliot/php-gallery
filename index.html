@@ -220,28 +220,45 @@
                 padding: 0;
             }
 
-            .lightbox-nav {
-                display: none;
-            }
-
             .lightbox img {
                 max-width: 100%;
-                max-height: 100vh;
+                max-height: calc(100vh - 80px); /* Make room for metadata + nav */
                 margin: 0;
                 width: 100%;
                 object-fit: contain;
             }
 
+            /* Move nav buttons to bottom */
+            .lightbox-nav {
+                position: absolute;
+                top: auto;
+                bottom: 0;
+                transform: none;
+                padding: 0;
+                z-index: 1002;
+            }
+
+            .lightbox-nav button {
+                width: 40px;
+                height: 80px;
+                background: rgba(0, 0, 0, 0.5);
+                border-radius: 0;
+            }
+
             .lightbox-metadata {
                 position: absolute;
                 bottom: 0;
-                left: 0;
-                right: 0;
+                left: 40px; /* Width of nav button */
+                right: 40px; /* Width of nav button */
                 margin: 0;
                 padding: 1rem;
-                width: 100%;
-                max-width: 100%;
+                width: auto;
+                max-width: none;
                 box-sizing: border-box;
+                height: 80px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
             }
 
             .lightbox-close {
@@ -249,6 +266,15 @@
                 top: 0.5rem;
                 right: 0.5rem;
             }
+        }
+
+        .touch-device .lightbox-nav {
+            display: none !important; /* Override any other display settings */
+        }
+
+        .touch-device .lightbox-metadata {
+            left: 0;
+            right: 0;
         }
     </style>
 </head>
@@ -304,6 +330,7 @@
                 this.touchStartX = 0;
                 this.touchEndX = 0;
                 
+                this.detectTouch();
                 this.setupEventListeners();
                 this.initialize();
             }
@@ -409,6 +436,17 @@
                         this.showLightbox(this.images[this.currentImageIndex + 1], this.currentImageIndex + 1);
                     }
                 });
+            }
+
+            detectTouch() {
+                // Add touch detection
+                const isTouchDevice = ('ontouchstart' in window) || 
+                    (navigator.maxTouchPoints > 0) || 
+                    (navigator.msMaxTouchPoints > 0);
+                
+                if (isTouchDevice) {
+                    document.documentElement.classList.add('touch-device');
+                }
             }
 
             showLightbox(imageData, index = -1) {
